@@ -1,0 +1,25 @@
+<!DOCTYPE html>      
+<html>      
+<head>      
+    <title>PlantLife</title>      
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>      
+</head>      
+<body style="background-color: seagreen; color: seashell; text-align: center;">      
+    <h1> Controle do Motor por Wi-fi</h1>  
+    <h1> PlantLife - Projeto CEE</h1>                                   
+    <h4></h4>      
+    <img src="planta.jpeg" width="400px" height="400px">      
+    <br>      
+    <button style="margin: 10px;" id="111" class="button">LIGAR</button>      
+   
+        <script>                                                        //Iniciando o JavaScript      
+        $(".button").click(function () {                            //Se qualquer botão da classe ".button" for clicado    
+            var p = $(this).attr('id');                             //Pegue o valor do Id desse botão e guarde na variável P.      
+            pin: p                                                  //um dicionario contem a variável p para mandar para o servidor web      
+            $.get("http://192.168.0.49:80/", {                      //E Então manda uma pedido para "http://192.168.1.4:80/" ( A porta":80" é a porta de acesso a servidores web.  com os dados da variável p que é o id do botão. O ip utilizado aqui é o ip estático do módulo ESP 2866-01 Quando se conecta ao seu WI-fi      
+            pin: p      
+            });      
+        });      
+    </script>      
+</body>      
+</html>      	
