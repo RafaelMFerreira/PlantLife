@@ -1,0 +1,111 @@
+#include <SoftwareSerial.h>                         //Incluindo a biblioteca SoftwareSerial que vai permitir o uso dos pinos 2 e 3 como RX e TX
+SoftwareSerial esp8266(2,3);                        //Marcar o Rx como Pino 2; TX como pino 3.      
+#define DEBUG true                                  //Uma variável chamada DEBUG para facilitar o controle.      
+int pinoLuz= A0;                                    //Atribuir a variável pinoLuz ao pino A0      
+int pinoSolo = A2;                                  //Atribuir a variável pinoSolo ao pino A2
+int pinoMotor =11;                                  //Atribuir a variável pinoMotor ao pino 11      
+int luminosidade = 0;                               //Criar a variável luminosidade
+int umidade = 0;                                    //Criar a variável umidade
+
+void setup()      
+{      
+  pinMode(pinoSolo, INPUT);                           //Configurar o pinoSolo como INPUT  
+  pinMode(pinoLuz, INPUT);                            //Configurar o pinoLuz como INPUT
+  pinMode(pinoMotor,OUTPUT);                          //Configurar o pinoMotor como OUTPUT      
+  digitalWrite(pinoMotor,LOW);                        //Deixar o pinoMotor no LOW ao ligar o Arduino     
+  Serial.begin(9600);                                 //Começar a comunicação serial na velocidade 9600.      
+  esp8266.begin(9600);                                //Começar a comunicação serial dos pinos 2,3 na velocidade 9600     
+  iniciarWifi();                                      //Chama a função que configura as configurações iniciais do Wi-Fi      
+}      
+void loop()                                                              
+{      
+  if(esp8266.available())                                           //Se houver algum dado recebido armazenado, executar o conteúdo do IF      
+  {      
+    if(esp8266.find("+IPD,"))                                       //Procura por "+IPD," nos dados que estão chegando. Se existir o  ".find()" retorna verdadeiro, se não retorna falso.      
+    {      
+      delay(1000);                                                  //Espera 1 segundo pra encher o buffer com dados     
+      int connectionId = esp8266.read()-48;                         //Subtrai 48 porque a função read() retorna o valor ASCII. E o 0, (primeiro número decimal) começa no 48.    
+      esp8266.find("pin=");                                         //Avança até o "pin=" no header da requisição para ler os bytes que estão chegando depois da parte "pin=", o quais são o número do pino e o seu estado (1 ou 0).      
+      int pinoRecebido = (esp8266.read()-48)*10;                    //Le o primeiro Byte do buffer do arduino(por exemplo, se o número for 11, o segundo numéro é 1) e então multiplica por 10.      
+      pinoRecebido = pinoRecebido + (esp8266.read()-48);            //Le o primeiro Byte do buffer do arduino(por exemplo, se o número for 11, o segundo numéro é 1) e então adiciona esse número ao primeiro número.     
+      int nivelPino =(esp8266.read()-48);                           //Le o terceiro Byte do buffer do arduino e então atribui este valor a varíavel "nivelPino". Sempre será 1 ou 0.      
+      digitalWrite(pinoRecebido, nivelPino);                        //Então, liga o pino recebido no valor também recebido.      
+      delay(2000);                                                  //Como a intenção desse programa é controlar o motor para irrigação, após 2 segundos o motor se desliga para garantir que não regue demais.
+      digitalWrite(pinoRecebido, LOW);                              //Desligamento do motor
+      String fecharComando = "AT+CIPCLOSE=";                         //Fecha a conexão TCP/IP      
+      fecharComando+=connectionId;                                   //Junta o "connectionId" numa string.      
+      fecharComando+="\r\n";                                         //Junta o "\r\n" para a string. Isso simula a tecla Enter do teclado.      
+      enviarDados(fecharComando,1000,DEBUG);                            //Então envia esse comando para o ESP2866 executar.      
+            
+    }      
+  }   
+  int luminosidade = analogRead(pinoLuz);                         //Leitura do valor da luminosidade do LDR
+  umidade = map(analogRead(pinoSolo),650,300,0,100);              //Leitura da umidade, mapeando o valor que vai de 650 a 300 (valores medidos empiricamente, para saber os valores do solo seco e do solo molhado) e converte este valor em um valor de 0 a 100.
+ 
+  Serial.print("Luminosidade: ");                                 //Imprime a variável luminosidade no Serial
+  Serial.print(luminosidade);
+  Serial.print(" Umidade: ");                                     //Imprime a variável umidade no Serial
+  Serial.print(umidade);
+  Serial.println(" %");
+  
+  if ((umidade < 20) || (umidade < 40 && luminosidade < 300)){    // Condição para que haja a irrigação automática caso a umidade esteja muito baixa ou esteja média/baixa e haja uma luz intensa sobre a planta.
+    digitalWrite(pinoMotor, HIGH);
+    delay(5000);                                                  // Delay de 5 Segundos para irrigar completamente a planta.
+    digitalWrite(pinoMotor,LOW);
+    }  
+  delay(100);
+
+     
+}      
+/******************************************************************************************************************************************************************************************      
+* Nome: enviarDados      
+* Descrição: Essa função controla como os comandos AT serão enviados ao ESP8266.      
+*       
+* Parametros: comando - o comando AT para enviar       
+*                 - timeout - o tempo para aguardar a resposta      
+*                 - debug - imprimir na janela serial?(true = sim, false = nao)      
+*                       
+* Retorna: A resposta do esp8266      
+*/      
+String enviarDados(String comando, const int timeout, boolean debug)      
+{      
+    String resposta = "";                                             //Inicializa uma string chamada "resposta"      
+          
+    esp8266.print(comando);                                           //Envia o comando AT para o esp8266 (do ARDUINO para o ESP8266).      
+    long int tempo = millis();                                         //Pega o tempo de operação deste momento específico e guarda na variável tempo      
+    while( (tempo+timeout) > millis())                                 //Executa em 1s      
+    {            
+      while(esp8266.available())                                      //Tem alguma resposta do ESP 8266?      
+      {      
+        char c = esp8266.read();                                      //Se sim, lê o proximo caractere do buffer de input e guarda na variável resposta.      
+        resposta+=c;                                                  //Junta o proximo caractere com a varíavel resposta.No final teremos uma varíavel com uma string completa que contém a resposta.      
+      }        
+    }          
+    if(debug)                                                         //Se a varíavel DEBUG for verdadeira, imprime a resposta no Serial      
+    {      
+      Serial.print(resposta);      
+    }          
+    return resposta;                                                  //retorna a String resposta.      
+}      
+/******************************************************************************************************************************************************************************************      
+* Name: InitWifiModule      
+* Description: Essa função faz toda a configuração do Wi-Fi.      
+*       
+* Parametros: Nada.      
+*                       
+* Retorna: Nada      
+*/      
+void iniciarWifi()      
+{      
+  enviarDados("AT+RST\r\n", 2000, DEBUG);                                                  //Reinicia o módulo ESP2866.      
+  delay(1000);      
+  enviarDados("AT+CWJAP=\"NOME DA REDE\",\"SENHA DA REDE\"\r\n", 2000, DEBUG);             //Se conecta ao Wi-fi.      
+  delay (3000);      
+  enviarDados("AT+CWMODE=1\r\n", 1500, DEBUG);                                             //Configura para o modo de estação do ESP2866.      
+  delay (1000);      
+  enviarDados("AT+CIFSR\r\n", 1500, DEBUG);                                                //Mostra o endereço IP e o endereço MAC.      
+  delay (1000);      
+  enviarDados("AT+CIPMUX=1\r\n", 1500, DEBUG);                                             //Permitir múltiplas conexões.      
+  delay (1000);      
+  enviarDados("AT+CIPSERVER=1,80\r\n", 1500, DEBUG);                                       //Começa a comunicação na porta 80, a porta 80 é usada para comunicação com servidores web através de pedidos HTTP.      
+}      
